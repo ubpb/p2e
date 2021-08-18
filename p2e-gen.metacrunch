@@ -1,0 +1,150 @@
+#
+# Dieses Skript erstellt das für die Alma Migration erforderliche
+# P2E File.
+#
+require_relative "base"
+
+set_default_options
+
+report_name = "p2e-gen"
+
+dataset = db.from(Sequel[:pad50][:z00p]).order(Sequel.desc(:z00p_doc_number))
+count   = dataset.count
+source Metacrunch::DB::Source.new(dataset, rows_per_fetch: 5000)
+
+processed = 0
+
+# Create a progress bar
+create_progress_bar(count)
+
+# Pre process
+pre_process -> {
+  puts "Processing #{count} records..."
+  progress_bar.start
+}
+
+# Post process hook
+post_process -> {
+  progress_bar.finish
+}
+
+# Increment progress bar
+transformation ->(db_row) do
+  progress_bar.increment rescue nil
+  db_row
+end
+
+# Create Marcxml instance
+transformation ->(db_row) do
+  {
+    id: db_row[:z00p_doc_number],
+    marcxml: Metacrunch::Marcxml.parse(db_row[:z00p_str] || db_row[:z00p_ptr]),
+    result: {}
+  }
+end
+
+# Select only "electronic resources"
+transformation ->(data) do
+  f050 = data[:marcxml].controlfield("050")
+
+  if f050.present? && f050.value.at(8) == "g"
+    data
+  else
+    nil
+  end
+end
+
+# Set IZEXCLUDE
+transformation ->(data) do
+  # TODO: data[:result][:iz_exclude] = "IZEXCLUDE"
+  data
+end
+
+# Set Type
+transformation ->(data) do
+  # TODO: data[:result][:type] = "Portfolio" || "DB"
+  data
+end
+
+# Build up some more data for the report
+transformation ->(data) do
+  # Status
+  data[:result][:status] = begin
+    _status = "A"
+    # gelöscht -> LDR Position 6 == "d"
+    _status = "D" if data[:marcxml].controlfield("LDR").value.at(5) == "d"
+    # ausgesondert über Feld 078
+    _status = "D" if data[:marcxml].datafields("078", ind1: "r").subfields("a").first&.value&.downcase == "aus"
+    # Standort Detmold unterdrücken
+    detmold_locations = data[:marcxml].datafields("LOC").subfields("n").values
+    _status = "D" if detmold_locations.present? && detmold_locations.all?{|v| v == "50"}
+    # Interimsaufnahmen unterdrücken
+    _status = "D" if data[:marcxml].datafields("537", ind1: "-", ind2: "1").subfields("a").values.any? { |v| v.downcase.include? "interimsaufnahme" }
+    # wenn gelöscht via datafield "DEL"
+    _status = "D" if data[:marcxml].datafields("DEL").subfields("a").values.include?("Y")
+
+    _status
+  end
+
+  # HBZ ID
+  data[:result][:f001] = data[:marcxml].datafields("001", ind2: "1").subfields("a")&.first&.value
+
+  # Titel
+  data[:result][:title] = data[:marcxml].datafields("331", ind2: "1").subfields("a")&.first&.value
+
+  # URLS
+  data[:result][:urls] = data[:marcxml].datafields("655").subfields("u").values.map(&:presence).compact
+
+  # Other stuff
+  data[:result][:f050]  = data[:marcxml].controlfield("050")&.value
+  data[:result][:f051]  = data[:marcxml].controlfield("051")&.value
+  data[:result][:f052]  = data[:marcxml].controlfield("052")&.value
+  data[:result][:f078e] = data[:marcxml].datafields("078", ind1: "e")&.subfields("a")&.values
+  data[:result][:f078z] = data[:marcxml].datafields("078", ind1: "z")&.subfields("a")&.values
+
+  # return
+  data
+end
+
+# Prepare for excel report
+transformation ->(data) do
+  [
+    data[:id],
+    data[:result][:iz_exclude],
+    data[:result][:type],
+    data[:result][:status],
+    data[:result][:f001],
+    data[:result][:f050],
+    data[:result][:f051],
+    data[:result][:f052],
+    data[:result][:f078e]&.join("|"),
+    data[:result][:f078z]&.join("|"),
+    data[:result][:title],
+    data[:result][:urls]&.join("|")
+  ]
+end
+
+# Excel destination
+destination Metacrunch::File::CSVDestination.new(
+  "#{report_name}.csv",
+  [
+    "ID",
+    "IZEXCLUDE",
+    "Type",
+    "Status",
+    "001",
+    "050",
+    "051",
+    "052",
+    "078e",
+    "078z",
+    "Titel",
+    "URLs"
+  ],
+  override_existing_file: true,
+  csv_options: {
+    col_sep: ";",
+    force_quotes: "true"
+  }
+)
+

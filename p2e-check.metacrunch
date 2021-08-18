@@ -1,0 +1,133 @@
+#
+# Dieses Skript nimmt alle Titel die in 655$u einen URL stehen haben
+# und prüft ob diese Titel dann auch in 050 Position 8 ein "g" stehen
+# haben (=> e-ressource). Ist das nicht der Fall wird der Titel ausgegeben
+# zur Korrektur. Links zu Inhaltsverzeichnissen
+# (keine e-ressourcen) werden vorher ausgefiltert.
+#
+require_relative "base"
+
+set_default_options
+
+report_name = "p2e-check"
+
+dataset = db.from(Sequel[:pad50][:z00p]).order(Sequel.desc(:z00p_doc_number))
+count   = dataset.count
+source Metacrunch::DB::Source.new(dataset, rows_per_fetch: 5000)
+
+# Create a progress bar
+create_progress_bar(count)
+
+# Pre process
+pre_process -> {
+  puts "Processing #{count} records..."
+  progress_bar.start
+}
+
+# Post process hook
+post_process -> {
+  progress_bar.finish
+}
+
+# Increment progress bar
+transformation ->(db_row) do
+  progress_bar.increment rescue nil
+  db_row
+end
+
+# Create Marcxml instance
+transformation ->(db_row) do
+  {
+    id: db_row[:z00p_doc_number],
+    marcxml: Metacrunch::Marcxml.parse(db_row[:z00p_str] || db_row[:z00p_ptr])
+  }
+end
+
+# Select records with 655$u that are not pointing to an Inhalsverzeichnis.
+transformation ->(data) do
+  urls = []
+
+  data[:marcxml].datafields("655").each do |df|
+    sf_u = df.subfields("u").values       # URLs (W)
+    sf_3 = df.subfields("3").values.first # Bezugswerk (NW)
+    sf_z = df.subfields("z").values.first # Allgemeine Bemerkungen (NW)
+    sf_t = df.subfields("t").values       # Unterstützende Terminal-Emulation (W)
+
+    if sf_3 =~ /inhalt/i || sf_z =~ /inhalt/i || sf_t.all?{|v| v =~ /view/i}
+      # puts "Skipping 'Inhaltsverzeichnis' URLs: #{sf_u}"
+      #urls += sf_u
+    else
+      # puts "Found e-resource URLs: #{sf_u}"
+      urls += sf_u
+    end
+  end
+
+  urls = urls.map(&:strip).map(&:presence).compact
+
+  if urls.present?
+    data[:urls] = urls
+    data
+  else
+    nil
+  end
+end
+
+# Select only records that are not marked as "electronic resource".
+# MAB 050 position 8 != "g"
+transformation ->(data) do
+  f050 = data[:marcxml].controlfield("050")
+
+  if f050.blank? || f050.value.at(8) != "g"
+    data
+  else
+    nil
+  end
+end
+
+# Select some more fields for proper reporting
+transformation ->(data) do
+  # select status
+  data[:status] = begin
+    _status = "A"
+    # gelöscht -> LDR Position 6 == "d"
+    _status = "D" if data[:marcxml].controlfield("LDR").value.at(5) == "d"
+    # ausgesondert über Feld 078
+    _status = "D" if data[:marcxml].datafields("078", ind1: "r").subfields("a").first&.value&.downcase == "aus"
+    # Standort Detmold unterdrücken
+    detmold_locations = data[:marcxml].datafields("LOC").subfields("n").values
+    _status = "D" if detmold_locations.present? && detmold_locations.all?{|v| v == "50"}
+    # Interimsaufnahmen unterdrücken
+    _status = "D" if data[:marcxml].datafields("537", ind1: "-", ind2: "1").subfields("a").values.any? { |v| v.downcase.include? "interimsaufnahme" }
+    # wenn gelöscht via datafield "DEL"
+    _status = "D" if data[:marcxml].datafields("DEL").subfields("a").values.include?("Y")
+
+    _status
+  end
+
+  data[:f050] = data[:marcxml].controlfield("050")&.value
+  data[:f051] = data[:marcxml].controlfield("051")&.value
+  data[:f052] = data[:marcxml].controlfield("052")&.value
+  #data[:f078] = data[:marcxml].controlfield("078")&.value
+
+  data
+end
+
+# Prepare for excel report
+transformation ->(data) do
+  [
+    data[:id],
+    data[:status],
+    data[:f051],
+    data[:f051],
+    data[:f052],
+    #data[:f078],
+    data[:urls].join("\n")
+  ]
+end
+
+# Excel destination
+destination Metacrunch::File::XLSXDestination.new(
+ "#{report_name}.xlsx",
+ ["ID", "Status", "050", "051", "052", "URLs"],
+ worksheet_title: report_name
+)
