@@ -99,7 +99,13 @@ transformation ->(data) do
   data[:result][:f050]  = data[:marcxml].controlfield("050")&.value
   data[:result][:f051]  = data[:marcxml].controlfield("051")&.value
   data[:result][:f052]  = data[:marcxml].controlfield("052")&.value
+  data[:result][:f078d] = data[:marcxml].datafields("078", ind1: "d")&.subfields("a")&.values
   data[:result][:f078e] = data[:marcxml].datafields("078", ind1: "e")&.subfields("a")&.values
+  data[:result][:f078i] = data[:marcxml].datafields("078", ind1: "i")&.subfields("a")&.values
+  data[:result][:f078r] = data[:marcxml].datafields("078", ind1: "r")&.subfields("a")&.values
+  data[:result][:f078s] = data[:marcxml].datafields("078", ind1: "s")&.subfields("a")&.values
+  data[:result][:f078t] = data[:marcxml].datafields("078", ind1: "t")&.subfields("a")&.values
+  data[:result][:f078u] = data[:marcxml].datafields("078", ind1: "u")&.subfields("a")&.values
   data[:result][:f078z] = data[:marcxml].datafields("078", ind1: "z")&.subfields("a")&.values
 
   # return
@@ -117,7 +123,13 @@ transformation ->(data) do
     data[:result][:f050],
     data[:result][:f051],
     data[:result][:f052],
+    data[:result][:f078d]&.join("|"),
     data[:result][:f078e]&.join("|"),
+    data[:result][:f078i]&.join("|"),
+    data[:result][:f078r]&.join("|"),
+    data[:result][:f078s]&.join("|"),
+    data[:result][:f078t]&.join("|"),
+    data[:result][:f078u]&.join("|"),
     data[:result][:f078z]&.join("|"),
     data[:result][:title],
     data[:result][:urls]&.join("|")
@@ -136,7 +148,13 @@ destination Metacrunch::File::CSVDestination.new(
     "050",
     "051",
     "052",
+    "078d",
     "078e",
+    "078i",
+    "078r",
+    "078s",
+    "078t",
+    "078u",
     "078z",
     "Titel",
     "URLs"
