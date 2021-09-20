@@ -4,15 +4,21 @@
 #
 require_relative "base"
 
-set_default_options
+set_default_options do |options|
+  options.add :verbose, "-v", "Enable verbose mode"
+end
 
 report_name = "p2e-gen"
+timestamp   = Time.now.strftime("%Y%m%d-%H%M%S")
 
+IZ_EXCLUDE     = "IZEXCLUDE".freeze
+DB_TYPE        = "DB".freeze
+PORTFOLIO_TYPE = "Portfolio".freeze
+
+# Select the data
 dataset = db.from(Sequel[:pad50][:z00p]).order(Sequel.desc(:z00p_doc_number))
 count   = dataset.count
 source Metacrunch::DB::Source.new(dataset, rows_per_fetch: 5000)
-
-processed = 0
 
 # Create a progress bar
 create_progress_bar(count)
@@ -37,9 +43,10 @@ end
 # Create Marcxml instance
 transformation ->(db_row) do
   {
-    id: db_row[:z00p_doc_number],
     marcxml: Metacrunch::Marcxml.parse(db_row[:z00p_str] || db_row[:z00p_ptr]),
-    result: {}
+    result: {
+      id: "PAD01#{db_row[:z00p_doc_number]}"
+    }
   }
 end
 
@@ -54,19 +61,7 @@ transformation ->(data) do
   end
 end
 
-# Set IZEXCLUDE
-transformation ->(data) do
-  # TODO: data[:result][:iz_exclude] = "IZEXCLUDE"
-  data
-end
-
-# Set Type
-transformation ->(data) do
-  # TODO: data[:result][:type] = "Portfolio" || "DB"
-  data
-end
-
-# Build up some more data for the report
+# Extract some infos for filtering and report
 transformation ->(data) do
   # Status
   data[:result][:status] = begin
@@ -112,57 +107,99 @@ transformation ->(data) do
   data
 end
 
-# Prepare for excel report
+# Set IZEXCLUDE and Type
 transformation ->(data) do
-  [
-    data[:id],
-    data[:result][:iz_exclude],
-    data[:result][:type],
-    data[:result][:status],
-    data[:result][:f001],
-    data[:result][:f050],
-    data[:result][:f051],
-    data[:result][:f052],
-    data[:result][:f078d]&.join("|"),
-    data[:result][:f078e]&.join("|"),
-    data[:result][:f078i]&.join("|"),
-    data[:result][:f078r]&.join("|"),
-    data[:result][:f078s]&.join("|"),
-    data[:result][:f078t]&.join("|"),
-    data[:result][:f078u]&.join("|"),
-    data[:result][:f078z]&.join("|"),
-    data[:result][:title],
-    data[:result][:urls]&.join("|")
-  ]
+  data[:result][:type] = PORTFOLIO_TYPE # default
+
+  if data[:result][:f078z].any?{|v| v&.downcase&.strip == "lzzdb"}
+    data[:result][:iz_exclude] = IZ_EXCLUDE
+
+    if data[:result][:urls].any?{|v| v =~ /dbis\.uni\-regensburg\.de/i}
+      data[:result][:iz_exclude] = nil
+      data[:result][:type] = DB_TYPE
+    end
+  end
+
+  if data[:result][:f078i].any?{|v| v&.downcase&.strip == "frlzzdb"}
+    data[:result][:iz_exclude] = IZ_EXCLUDE
+  end
+
+  if data[:result][:urls].any?{|v| v =~ /uni\-regensburg\.de\/ezeit/i}
+    data[:result][:iz_exclude] = IZ_EXCLUDE
+  end
+
+  data
 end
 
-# Excel destination
-destination Metacrunch::File::CSVDestination.new(
-  "#{report_name}.csv",
-  [
+# Prepare data for destination
+transformation ->(data) do
+  dest_data = [
+    data[:result][:id],
+    data[:result][:iz_exclude],
+    data[:result][:type]
+  ]
+
+  if options[:verbose]
+    dest_data += [
+      data[:result][:status],
+      data[:result][:f001],
+      data[:result][:f050],
+      data[:result][:f051],
+      data[:result][:f052],
+      data[:result][:f078d]&.join("|"),
+      data[:result][:f078e]&.join("|"),
+      data[:result][:f078i]&.join("|"),
+      data[:result][:f078r]&.join("|"),
+      data[:result][:f078s]&.join("|"),
+      data[:result][:f078t]&.join("|"),
+      data[:result][:f078u]&.join("|"),
+      data[:result][:f078z]&.join("|"),
+      data[:result][:title],
+      data[:result][:urls]&.join("|")
+    ]
+  end
+
+  dest_data
+end
+
+# CSV destination
+def headers
+  headers = [
     "ID",
     "IZEXCLUDE",
-    "Type",
-    "Status",
-    "001",
-    "050",
-    "051",
-    "052",
-    "078d",
-    "078e",
-    "078i",
-    "078r",
-    "078s",
-    "078t",
-    "078u",
-    "078z",
-    "Titel",
-    "URLs"
-  ],
-  override_existing_file: true,
+    "Type"
+  ]
+
+  if options[:verbose]
+    headers += [
+      "Status",
+      "001",
+      "050",
+      "051",
+      "052",
+      "078d",
+      "078e",
+      "078i",
+      "078r",
+      "078s",
+      "078t",
+      "078u",
+      "078z",
+      "Titel",
+      "URLs"
+    ]
+  end
+
+  headers
+end
+
+destination Metacrunch::File::CSVDestination.new(
+  "#{report_name}-#{timestamp}.csv",
+  headers,
+  override_existing_file: false,
   csv_options: {
-    col_sep: ";",
-    force_quotes: "true"
+    col_sep: ",",
+    force_quotes: options[:verbose]
   }
 )
 
