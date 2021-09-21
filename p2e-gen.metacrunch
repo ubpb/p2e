@@ -3,13 +3,16 @@
 # P2E File.
 #
 require_relative "base"
+require_relative "p2e_destination"
 
 set_default_options do |options|
-  options.add :verbose, "-v", "Enable verbose mode"
+  options.add :report, "-r", "Also create detailed report"
 end
 
-report_name = "p2e-gen"
-timestamp   = Time.now.strftime("%Y%m%d-%H%M%S")
+p2e_filename        = "p2e"
+iz_exclude_filename = "iz_exclude"
+report_filename     = "report"
+timestamp           = Time.now.strftime("%Y%m%d-%H%M%S")
 
 IZ_EXCLUDE     = "IZEXCLUDE".freeze
 DB_TYPE        = "DB".freeze
@@ -40,12 +43,29 @@ transformation ->(db_row) do
   db_row
 end
 
-# Create Marcxml instance
+# Create Marcxml instance and prepare result ds
 transformation ->(db_row) do
   {
     marcxml: Metacrunch::Marcxml.parse(db_row[:z00p_str] || db_row[:z00p_ptr]),
     result: {
-      id: "PAD01#{db_row[:z00p_doc_number]}"
+      id: db_row[:z00p_doc_number],
+      type: nil,
+      iz_exclude: nil,
+      status: nil,
+      f001: nil,
+      f050: nil,
+      f051: nil,
+      f052: nil,
+      f078d: nil,
+      f078e: nil,
+      f078i: nil,
+      f078r: nil,
+      f078s: nil,
+      f078t: nil,
+      f078u: nil,
+      f078z: nil,
+      title: nil,
+      urls: nil
     }
   }
 end
@@ -113,19 +133,19 @@ transformation ->(data) do
 
   if data[:result][:f078z].any?{|v| v&.downcase&.strip == "lzzdb"}
     data[:result][:iz_exclude] = IZ_EXCLUDE
+  end
 
-    if data[:result][:urls].any?{|v| v =~ /dbis\.uni\-regensburg\.de/i}
-      data[:result][:iz_exclude] = nil
-      data[:result][:type] = DB_TYPE
-    end
+  if data[:result][:urls].any?{|v| v =~ /uni\-regensburg\.de\/ezeit/i}
+    data[:result][:iz_exclude] = IZ_EXCLUDE
   end
 
   if data[:result][:f078i].any?{|v| v&.downcase&.strip == "frlzzdb"}
     data[:result][:iz_exclude] = IZ_EXCLUDE
   end
 
-  if data[:result][:urls].any?{|v| v =~ /uni\-regensburg\.de\/ezeit/i}
-    data[:result][:iz_exclude] = IZ_EXCLUDE
+  if data[:result][:urls].any?{|v| v =~ /dbis\.uni\-regensburg\.de/i}
+    data[:result][:iz_exclude] = nil
+    data[:result][:type] = DB_TYPE
   end
 
   data
@@ -133,73 +153,16 @@ end
 
 # Prepare data for destination
 transformation ->(data) do
-  dest_data = [
-    data[:result][:id],
-    data[:result][:iz_exclude],
-    data[:result][:type]
-  ]
-
-  if options[:verbose]
-    dest_data += [
-      data[:result][:status],
-      data[:result][:f001],
-      data[:result][:f050],
-      data[:result][:f051],
-      data[:result][:f052],
-      data[:result][:f078d]&.join("|"),
-      data[:result][:f078e]&.join("|"),
-      data[:result][:f078i]&.join("|"),
-      data[:result][:f078r]&.join("|"),
-      data[:result][:f078s]&.join("|"),
-      data[:result][:f078t]&.join("|"),
-      data[:result][:f078u]&.join("|"),
-      data[:result][:f078z]&.join("|"),
-      data[:result][:title],
-      data[:result][:urls]&.join("|")
-    ]
-  end
-
-  dest_data
+  data[:result]
 end
 
-# CSV destination
-def headers
-  headers = [
-    "ID",
-    "IZEXCLUDE",
-    "Type"
-  ]
-
-  if options[:verbose]
-    headers += [
-      "Status",
-      "001",
-      "050",
-      "051",
-      "052",
-      "078d",
-      "078e",
-      "078i",
-      "078r",
-      "078s",
-      "078t",
-      "078u",
-      "078z",
-      "Titel",
-      "URLs"
-    ]
-  end
-
-  headers
-end
-
-destination Metacrunch::File::CSVDestination.new(
-  "#{report_name}-#{timestamp}.csv",
-  headers,
-  override_existing_file: false,
-  csv_options: {
-    col_sep: ",",
-    force_quotes: options[:verbose]
+# Destination
+destination P2EDestination.new(
+  p2e_filename: "#{timestamp}-#{p2e_filename}.csv",
+  iz_exclude_filename: "#{timestamp}-#{iz_exclude_filename}.csv",
+  report_filename: "#{timestamp}-#{report_filename}.csv",
+  options: {
+    create_report: options[:report]
   }
 )
 
