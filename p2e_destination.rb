@@ -84,7 +84,8 @@ private
       @report_headers_written = true
     end
 
-    line = CSV.generate_line(data.values, **@options[:report_csv_options])
+    values = data.values.map{|v| [v].join("|")}
+    line = CSV.generate_line(values, **@options[:report_csv_options])
     @report_file.write(line)
   end
 
