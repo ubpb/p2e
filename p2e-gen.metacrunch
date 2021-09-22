@@ -53,6 +53,7 @@ transformation ->(db_row) do
       id: db_row[:z00p_doc_number],
       type: nil,
       iz_exclude: nil,
+      filter_rule: nil,
       status: nil,
       f001: nil,
       f050: nil,
@@ -133,21 +134,57 @@ end
 transformation ->(data) do
   data[:result][:type] = PORTFOLIO_TYPE # default
 
+  #
+  # Rules for "e-journals"
+  #
   if data[:result][:f078z].any?{|v| v&.downcase&.strip == "lzzdb"}
     data[:result][:iz_exclude] = IZ_EXCLUDE
+    data[:result][:filter_rule] = "j"
   end
 
   if data[:result][:urls].any?{|v| v =~ /uni\-regensburg\.de\/ezeit/i}
     data[:result][:iz_exclude] = IZ_EXCLUDE
+    data[:result][:filter_rule] = "j"
   end
 
   if data[:result][:f078i].any?{|v| v&.downcase&.strip == "frlzzdb"}
     data[:result][:iz_exclude] = IZ_EXCLUDE
+    data[:result][:filter_rule] = "j"
   end
 
   if data[:result][:urls].any?{|v| v =~ /dbis\.uni\-regensburg\.de/i}
     data[:result][:iz_exclude] = nil
     data[:result][:type] = DB_TYPE
+    data[:result][:filter_rule] = "j"
+  end
+
+  #
+  # Rules for "e-books"
+  #
+  m_iz_exclude_fields = ["dilibri", "s2w-llbdetmold", "s2w-hsspadubpb", "s2w-retropadubpb",
+    "s2w-ulbbonn", "s2w-ulbbonndfg", "s2w-zbmed", "vl-ddbk", "vl-ulbd", "vl-ulbms", "zdb-13-soc",
+    "zdb-149-hcb", "zdb-15-acm", "zdb-185-std", "zdb-18-boh", "zdb-1-ats", "zdb-1-aws",
+    "zdb-1-bec", "zdb-1-cdc", "zdb-1-clf", "zdb-1-clm", "zdb-1-dfl", "zdb-1-dhw", "zdb-1-dlc",
+    "zdb-1-dlp", "zdb-1-eai", "zdb-1-eap", "zdb-1-ecc", "zdb-1-eeb", "zdb-1-eio", "zdb-1-elc",
+    "zdb-1-elw", "zdb-1-emo", "zdb-1-gcw", "zdb-1-hbe", "zdb-1-hra", "zdb-1-iel", "zdb-1-imf",
+    "zdb-1-kbl", "zdb-1-keb", "zdb-1-lcl", "zdb-1-mme", "zdb-1-mml", "zdb-1-mor", "zdb-1-mya",
+    "zdb-1-nai", "zdb-1-nel", "zdb-1-nolg", "zdb-1-rse", "zdb-1-rth", "zdb-1-rwf", "zdb-1-scm",
+    "zdb-1-sln", "zdb-1-smi", "zdb-1-sot", "zdb-1-tes", "zdb-1-wba", "zdb-1-wfr",
+    "zdb-23-dgg-eba", "zdb-23-goa", "zdb-265-afc", "zdb-28-orp", "zdb-2-bhs", "zdb-2-bsp",
+    "zdb-2-bum", "zdb-2-cms", "zdb-2-coe", "zdb-2-cwd", "zdb-2-ecf", "zdb-2-eda", "zdb-2-ees",
+    "zdb-2-ene", "zdb-2-eng", "zdb-2-esa", "zdb-2-hty", "zdb-2-inr", "zdb-2-lcm", "zdb-2-lcr",
+    "zdb-2-mge", "zdb-2-pha", "zdb-2-sbe", "zdb-2-sbl", "zdb-2-scs", "zdb-2-sep", "zdb-2-sgr",
+    "zdb-2-shu", "zdb-2-sls", "zdb-2-sma", "zdb-2-smd", "zdb-2-sme", "zdb-2-sna", "zdb-2-sob",
+    "zdb-2-sti", "zdb-2-swi", "zdb-2-szr", "zdb-39-joa", "zdb-57-dfs", "zdb-57-dsg", "zdb-57-dvr",
+    "zdb-5-vtc", "zdb-5-vww", "zdb-5-web", "zdb-5-wmp", "zdb-5-wmr", "zdb-5-wms", "zdb-5-wmv",
+    "zdb-605-preselect", "zdb-94-oab", "zdb-1-cee", "zdb-164-unl", "zdb-14-dlo", "zdb-1-kec",
+    "zdb-1-jmc", "zdb-1-jac", "zdb-1-ja3", "zdb-1-ja2", "zdb-1-ja13", "zdb-1-epc", "zdb-1-eav",
+    "zdb-1-dgr", "zdb-1-cup", "zdb-1-cupk", "zdb-1-cep", "zdb-1-bpc", "zdb-1-bep", "zdb-1-aaas3",
+    "zdb-1-lycn", "zdb-1-ojd", "zdb-1-pao", "zdb-18-beck-eba", "zdb-1-ewe", "zdb-1-peo",
+    "zdb-1-tcn", "zdb-2-lnc"]
+  if data[:result][:f078e].any?{|v| m_iz_exclude_fields.include?(v.downcase)} && !(data[:result][:f001] =~ /\AKK/i)
+    data[:result][:iz_exclude] = IZ_EXCLUDE
+    data[:result][:filter_rule] = "m"
   end
 
   data
