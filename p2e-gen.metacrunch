@@ -1,6 +1,8 @@
 #
 # Dieses Skript erstellt das für die Alma Migration erforderliche
-# P2E File.
+# P2E Datei, eine Aleph Ladedatei für alle IZEXCLUDE Titel und
+# eine Report Datei mit der wir die Daten auf Plausibilität
+# prüfen können.
 #
 require_relative "base"
 require_relative "p2e_destination"
