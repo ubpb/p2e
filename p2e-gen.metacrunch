@@ -131,33 +131,8 @@ transformation ->(data) do
 end
 
 # Set IZEXCLUDE and Type
+# ACHTUNG!!! ORDER MATTERS!!!
 transformation ->(data) do
-  data[:result][:type] = PORTFOLIO_TYPE # default
-
-  #
-  # Rules for "e-journals"
-  #
-  if data[:result][:f078z].any?{|v| v&.downcase&.strip == "lzzdb"}
-    data[:result][:iz_exclude] = IZ_EXCLUDE
-    data[:result][:filter_rule] = "j"
-  end
-
-  if data[:result][:urls].any?{|v| v =~ /uni\-regensburg\.de\/ezeit/i}
-    data[:result][:iz_exclude] = IZ_EXCLUDE
-    data[:result][:filter_rule] = "j"
-  end
-
-  if data[:result][:f078i].any?{|v| v&.downcase&.strip == "frlzzdb"}
-    data[:result][:iz_exclude] = IZ_EXCLUDE
-    data[:result][:filter_rule] = "j"
-  end
-
-  if data[:result][:urls].any?{|v| v =~ /dbis\.uni\-regensburg\.de/i}
-    data[:result][:iz_exclude] = nil
-    data[:result][:type] = DB_TYPE
-    data[:result][:filter_rule] = "j"
-  end
-
   #
   # Rules for "e-books"
   #
@@ -183,8 +158,35 @@ transformation ->(data) do
     "zdb-1-lycn", "zdb-1-ojd", "zdb-1-pao", "zdb-18-beck-eba", "zdb-1-ewe", "zdb-1-peo",
     "zdb-1-tcn", "zdb-2-lnc"]
   if data[:result][:f078e].any?{|v| m_iz_exclude_fields.include?(v.downcase)} && !(data[:result][:f001] =~ /\AKK/i)
+    data[:result][:type] = PORTFOLIO_TYPE
     data[:result][:iz_exclude] = IZ_EXCLUDE
     data[:result][:filter_rule] = "m"
+  #
+  # Rules for "e-journals"
+  #
+  elsif data[:result][:f078i].any?{|v| v&.downcase&.strip == "frlzzdb"}
+    data[:result][:type] = PORTFOLIO_TYPE
+    data[:result][:iz_exclude] = IZ_EXCLUDE
+    data[:result][:filter_rule] = "j"
+  elsif data[:result][:urls].any?{|v| v =~ /uni\-regensburg\.de\/ezeit/i}
+    data[:result][:type] = PORTFOLIO_TYPE
+    data[:result][:iz_exclude] = IZ_EXCLUDE
+    data[:result][:filter_rule] = "j"
+  elsif data[:result][:urls].any?{|v| v =~ /dbis\.uni\-regensburg\.de/i}
+    data[:result][:type] = DB_TYPE
+    data[:result][:iz_exclude] = nil
+    data[:result][:filter_rule] = "j"
+  elsif data[:result][:f078z].any?{|v| v&.downcase&.strip == "lzzdb"}
+    data[:result][:type] = PORTFOLIO_TYPE
+    data[:result][:iz_exclude] = IZ_EXCLUDE
+    data[:result][:filter_rule] = "j"
+  #
+  # The rest...
+  #
+  else
+    data[:result][:type] = PORTFOLIO_TYPE
+    data[:result][:iz_exclude] = nil
+    data[:result][:filter_rule] = "o"
   end
 
   data
