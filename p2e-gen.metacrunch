@@ -117,6 +117,7 @@ transformation ->(data) do
   data[:result][:f050]  = data[:marcxml].controlfield("050")&.value
   data[:result][:f051]  = data[:marcxml].controlfield("051")&.value
   data[:result][:f052]  = data[:marcxml].controlfield("052")&.value
+  data[:result][:f076c] = data[:marcxml].datafields("076", ind1: "c")&.subfields("a")&.values
   data[:result][:f078d] = data[:marcxml].datafields("078", ind1: "d")&.subfields("a")&.values
   data[:result][:f078e] = data[:marcxml].datafields("078", ind1: "e")&.subfields("a")&.values
   data[:result][:f078i] = data[:marcxml].datafields("078", ind1: "i")&.subfields("a")&.values
@@ -156,37 +157,43 @@ transformation ->(data) do
     "zdb-1-jmc", "zdb-1-jac", "zdb-1-ja3", "zdb-1-ja2", "zdb-1-ja13", "zdb-1-epc", "zdb-1-eav",
     "zdb-1-dgr", "zdb-1-cup", "zdb-1-cupk", "zdb-1-cep", "zdb-1-bpc", "zdb-1-bep", "zdb-1-aaas3",
     "zdb-1-lycn", "zdb-1-ojd", "zdb-1-pao", "zdb-18-beck-eba", "zdb-1-ewe", "zdb-1-peo",
-    "zdb-1-tcn", "zdb-2-lnc", "zdb-5-wmw"]
+    "zdb-1-tcn", "zdb-2-lnc", "zdb-5-wmw", "zdb-18-nomos-nrw", "zdb-18-nomos-vdi-nrw",
+    "zdb-196-meiner-eba", "zdb-35-wiley-eba", "zdb-37-iel", "zdb-5-wmt", "epfl-6", "zdb-16-hanser-eba",
+    "zdb-162-bloom-eba", "zdb-13-soc-article", "zdb-13-soc-ebook", "zdb-13-soc-statistic"]
   if data[:result][:f078e].any?{|v| m_iz_exclude_fields.include?(v.downcase)} && !(data[:result][:f001] =~ /\AKK/i)
     data[:result][:type] = PORTFOLIO_TYPE
     data[:result][:iz_exclude] = IZ_EXCLUDE
-    data[:result][:filter_rule] = "m"
+    data[:result][:filter_rule] = "m1"
   #
   # Rules for "e-journals"
   #
   elsif data[:result][:f078i].any?{|v| v&.downcase&.strip == "frlzzdb"}
     data[:result][:type] = PORTFOLIO_TYPE
     data[:result][:iz_exclude] = IZ_EXCLUDE
-    data[:result][:filter_rule] = "j"
-  elsif data[:result][:urls].any?{|v| v =~ /uni\-regensburg\.de\/ezeit/i}
-    data[:result][:type] = PORTFOLIO_TYPE
-    data[:result][:iz_exclude] = IZ_EXCLUDE
-    data[:result][:filter_rule] = "j"
-  elsif data[:result][:urls].any?{|v| v =~ /dbis\.uni\-regensburg\.de/i}
-    data[:result][:type] = DB_TYPE
-    data[:result][:iz_exclude] = nil
-    data[:result][:filter_rule] = "j"
+    data[:result][:filter_rule] = "j1"
   elsif data[:result][:f078z].any?{|v| v&.downcase&.strip == "lzzdb"}
     data[:result][:type] = PORTFOLIO_TYPE
     data[:result][:iz_exclude] = IZ_EXCLUDE
-    data[:result][:filter_rule] = "j"
+    data[:result][:filter_rule] = "j2"
+  elsif data[:result][:f076c].any?{|v| v&.downcase&.strip == "nl"}
+    data[:result][:type] = DB_TYPE
+    data[:result][:iz_exclude] = nil
+    data[:result][:filter_rule] = "j3"
+  elsif data[:result][:urls].any?{|v| v =~ /uni\-regensburg\.de\/ezeit/i || v =~ /ezb\.ur\.de/i}
+    data[:result][:type] = PORTFOLIO_TYPE
+    data[:result][:iz_exclude] = IZ_EXCLUDE
+    data[:result][:filter_rule] = "j4"
+  elsif data[:result][:urls].any?{|v| v =~ /dbis\.uni\-regensburg\.de/i || v =~ /dbis\.ur\.de/i}
+    data[:result][:type] = DB_TYPE
+    data[:result][:iz_exclude] = IZ_EXCLUDE
+    data[:result][:filter_rule] = "j5"
   #
   # The rest...
   #
   else
     data[:result][:type] = PORTFOLIO_TYPE
     data[:result][:iz_exclude] = nil
-    data[:result][:filter_rule] = "o"
+    data[:result][:filter_rule] = "o1"
   end
 
   data
