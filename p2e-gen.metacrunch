@@ -167,15 +167,15 @@ transformation ->(data) do
   #
   # Rules for "e-journals"
   #
-  elsif data[:result][:f078i].any?{|v| v&.downcase&.strip == "frlzzdb"}
+  elsif data[:result][:f078i].any?{|v| v&.downcase&.strip =~ /frlzzdb/}
     data[:result][:type] = PORTFOLIO_TYPE
     data[:result][:iz_exclude] = IZ_EXCLUDE
     data[:result][:filter_rule] = "j1"
-  elsif data[:result][:f078z].any?{|v| v&.downcase&.strip == "lzzdb"}
+  elsif data[:result][:f078z].any?{|v| v&.downcase&.strip =~ /lzzdb/}
     data[:result][:type] = PORTFOLIO_TYPE
     data[:result][:iz_exclude] = IZ_EXCLUDE
     data[:result][:filter_rule] = "j2"
-  elsif data[:result][:f076c].any?{|v| v&.downcase&.strip == "nl"}
+  elsif data[:result][:f076c].any?{|v| v&.downcase&.strip =~ /nl/}
     data[:result][:type] = DB_TYPE
     data[:result][:iz_exclude] = nil
     data[:result][:filter_rule] = "j3"
