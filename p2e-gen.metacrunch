@@ -59,6 +59,7 @@ transformation ->(db_row) do
       f050: nil,
       f051: nil,
       f052: nil,
+      f076c: nil,
       f078d: nil,
       f078e: nil,
       f078i: nil,
